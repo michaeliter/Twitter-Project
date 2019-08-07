@@ -1,0 +1,6 @@
+# Set a home directory if cron doesn't have access to your
+# home directory (ie. secure mounted drive)
+HOME=/path/to/my/code/Twitter-Project
+
+# every day at 6am send me an email with the last day's digest
+0 6 * * * sh runner.sh > /tmp/my-errorlog 2>&1
