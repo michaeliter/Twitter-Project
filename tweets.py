@@ -9,8 +9,9 @@ from collections import defaultdict
 import smtplib, ssl
 from email.mime.text import MIMEText
 
-CONFIG_FILE="./config.json"
+CONFIG_FILE="./twitter_data_config.json"
 LOG_LEVEL="WARN"
+USE_MAIL=False
 
 def mike_bs():
     # mail stuff
@@ -87,12 +88,20 @@ def mike_bs():
             with open(user_file_name, "wb") as fo2:
                 pickle.dump(new_last_id, fo2)
 
-        # send the email
-        # message = MIMEText("{}".format('\n'.join(text)))
-        # message['Subject'] = "{}'s tweets with urls".format(u.name)
-        # with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
-        #    server.login(sender_email, password)
-        #    server.sendmail(sender_email, receiver_email, message.as_string())
+
+def send_email(config, urls):
+    port = 465  # For SSL
+    smtp_server = "smtp.gmail.com"
+    sender_email = config['sender_email']
+    receiver_email = config['sender_email']
+    password = config['password']
+    context = ssl.create_default_context()
+    # send the email
+    message = MIMEText(urls)
+    message['Subject'] = "Today's Twitter urls"
+    with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, message.as_string())
 
 def parse_config(filename):
     return json.load(open(filename, "r"))
@@ -196,6 +205,9 @@ if __name__ == "__main__":
     annotated_urls = extract_urls(user_tweets)
     pretty_print_urls = sort_and_print(annotated_urls)
     print(pretty_print_urls)
+    if USE_MAIL:
+        send_email(pretty_print_urls)
+
 
 
 
