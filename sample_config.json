@@ -6,5 +6,5 @@
   "ignore_user": [""],
   "sender_email": "",
   "receiver_email": "",
-  "password": ""
+  "email_password": ""
 }

@@ -9,84 +9,10 @@ from collections import defaultdict
 import smtplib, ssl
 from email.mime.text import MIMEText
 
-CONFIG_FILE="./twitter_data_config.json"
+CONFIG_FILE="./config.json"
 LOG_LEVEL="WARN"
+GET_LIKES=True
 USE_MAIL=False
-
-def mike_bs():
-    # mail stuff
-    port = 465  # For SSL
-    smtp_server = "smtp.gmail.com"
-    sender_email = "miter909@gmail.com"  # Enter your address
-    receiver_email = "miter909@gmail.com"  # Enter receiver address
-    # password = input("Type your password and press enter: ")
-    password = "Test909!"
-    context = ssl.create_default_context()
-
-    last_id = None
-    new_last_id = None
-    id_mark = None
-    tick = True
-    counter = 0
-
-    # Get friends
-    users = api.GetFriends()
-
-    # For each user do everything
-    for u in users:
-
-        # initialize last id to None and then attempt to load.
-        user_file_name = "./u_{}.pic".format(u.id)
-        last_id = None
-        new_last_id = None
-        id_mark = None
-        tick = True
-        counter = 0
-        text = ""
-
-        # check if user file exists; if not create one
-        if os.path.exists(user_file_name):
-            with open(user_file_name, "rb") as fo1:
-                try:
-                    last_id = pickle.load(fo1)
-                except Exception as ex:
-                    print("User [{}] file empty. Proceeding with default value None. Exception [{}]".format(u.name, ex))
-
-        while True:
-
-            # get the array of 5 latest tweets up to last id
-            status_stream = api.GetUserTimeline(user_id=u.id, count=5, max_id=id_mark, since_id=last_id)
-            tweets_buffer = [tweet.AsDict() for tweet in status_stream]
-
-            # record latest id once
-            for t in tweets_buffer:
-                if tick:
-                    new_last_id = t['id'] + 1
-                    tick = False
-                # process urls if available
-                myString = t['text']
-                match = re.search("(?P<url>https?://[^\s]+)", myString)
-                if 'media' in t.keys():
-                    for j in t['media']:
-                        text += "tweet: " + myString + " url: " + j["url"]
-                elif match is not None:
-                    text += "tweet: " + t['text']
-                if text:
-                    print(text)
-                    exit(-1)
-
-            # get id mark for the next page
-            if len(tweets_buffer) > 0:
-                id_mark = tweets_buffer[-1]["id"] - 1
-
-            # do -- while end statement for loop exit.
-            counter = counter + 1
-            if (last_id is None and counter > 4) or len(tweets_buffer) == 0:
-                break
-        # if new last id then record it
-        if new_last_id is not None:
-            with open(user_file_name, "wb") as fo2:
-                pickle.dump(new_last_id, fo2)
 
 
 def send_email(config, urls):
@@ -94,7 +20,7 @@ def send_email(config, urls):
     smtp_server = "smtp.gmail.com"
     sender_email = config['sender_email']
     receiver_email = config['sender_email']
-    password = config['password']
+    email_password = config['email_password']
     context = ssl.create_default_context()
     # send the email
     message = MIMEText(urls)
@@ -114,14 +40,14 @@ def create_api(config):
                        tweet_mode="extended")
     return api
 
-def get_last_day_tweets(api, user, now, max_tweets=100):
+def get_last_day_tweets(api, now, max_tweets=100):
     all_tweets = []
     found_oldest = False
     oldest_id = None
     while found_oldest != True:
-        tweets = api.GetUserTimeline(user_id=user.id, count=20, trim_user=True, exclude_replies=True, max_id=oldest_id)
+        tweets = api.GetHomeTimeline(count=20, trim_user=True, exclude_replies=True, max_id=oldest_id)
         if LOG_LEVEL == 'DEBUG':
-            print("Found %d tweets for user %s" % (len(tweets), user.screen_name))
+            print("Found %d tweets" % len(tweets))
         for tweet in tweets:
             timestamp = parser.parse(tweet.created_at)
             diff = now - timestamp
@@ -132,23 +58,56 @@ def get_last_day_tweets(api, user, now, max_tweets=100):
             oldest_id = tweet.id
             if len(all_tweets) >= max_tweets:
                 if LOG_LEVEL == 'DEBUG':
-                    print("Max tweets for user",  user.screen_name)
+                    print("Max tweets")
                 found_oldest = True
                 break
             if not found_oldest:
                 if LOG_LEVEL == 'DEBUG':
-                    print("Many tweets for user", user.screen_name)
+                    print("Many tweets")
+    return all_tweets
+
+def get_last_day_liked_tweets(api, user, now, max_tweets=100):
+    all_tweets = []
+    found_oldest = False
+    oldest_id = None
+    while found_oldest != True:
+        liked_tweets = api.GetFavorites(user_id=user.id, count=20, max_id=oldest_id)
+        if LOG_LEVEL == 'DEBUG':
+            print("Found %d liked tweets for user %s" % (len(liked_tweets), user.screen_name))
+        for tweet in liked_tweets:
+            timestamp = parser.parse(tweet.created_at)
+            diff = now - timestamp
+            if diff.days >= 1:
+                found_oldest = True
+                break
+            all_tweets.append(tweet)
+            oldest_id = tweet.id
+            if len(all_tweets) >= max_tweets:
+                if LOG_LEVEL == 'DEBUG':
+                    print("Max liked tweets for user", user.screen_name)
+                found_oldest = True
+                break
+            if not found_oldest:
+                if LOG_LEVEL == 'DEBUG':
+                    print("Many liked tweets for user", user.screen_name)
     return all_tweets
 
 def fetch_tweets(api, users):
     user_tweets = {}
     if LOG_LEVEL == 'DEBUG':
         print("Fetching %d users" % len(users))
+    original_tweets = get_last_day_tweets(api, current_time)
     for user in users:
-        if user.screen_name in config['ignore_user']:
-            continue
-        tweets = get_last_day_tweets(api, user, current_time)
-        user_tweets[user] = tweets
+        if GET_LIKES:
+            if user.screen_name in config['ignore_user']:
+                continue
+            tweets = get_last_day_liked_tweets(api, user, current_time)
+            user_tweets[user] = tweets
+        for tweet in original_tweets:
+            if tweet.user.screen_name in config['ignore_user']:
+                continue
+            if tweet.user.id == user.id:
+                user_tweets[user].append(tweet)
     return user_tweets
 
 def match_urls(tweet):
@@ -206,7 +165,7 @@ if __name__ == "__main__":
     pretty_print_urls = sort_and_print(annotated_urls)
     print(pretty_print_urls)
     if USE_MAIL:
-        send_email(pretty_print_urls)
+        send_email(config, pretty_print_urls)
 
 
 

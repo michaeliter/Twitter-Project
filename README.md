@@ -18,5 +18,4 @@ keys, copy `sample_config.json` to `config.json`
  and fill in all the empty strings.
 
 ## Authors:
-Michael Iter
-Dan Iter
+Michael Iter and Dan Iter
