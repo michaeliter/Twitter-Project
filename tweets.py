@@ -48,6 +48,8 @@ def get_last_day_tweets(api, now, max_tweets=100):
         tweets = api.GetHomeTimeline(count=20, trim_user=True, exclude_replies=True, max_id=oldest_id)
         if LOG_LEVEL == 'DEBUG':
             print("Found %d tweets" % len(tweets))
+        if len(tweets) == 0:
+            return all_tweets
         for tweet in tweets:
             timestamp = parser.parse(tweet.created_at)
             diff = now - timestamp
